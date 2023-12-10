@@ -1,15 +1,12 @@
 import asyncio
 import json
-from time import sleep
-from mysql.connector import connect, Error
-#from nocturne import NocturneServer
+from mysql.connector import connect
 from Crypto.Util.number import long_to_bytes, bytes_to_long
-
-#from ..NocturneProtocol.NocturneProtocol import NocturneServer
 
 from NocturneServer import NocturneServer
 
 class ServerProtocol(asyncio.Protocol):
+
     def __init__(self, ip, port):
         self.__connection = connect(
         user='affairs', password='affairs', host='localhost', 
@@ -30,16 +27,18 @@ class ServerProtocol(asyncio.Protocol):
 
         if data[0:2] == b'\x10\xAA':
             x, n = self.nocturne.getDataToEst()
-            s = b'\x10\xBB' + long_to_bytes(n) + long_to_bytes(x)
-            self.transport.write(s)
+            s = long_to_bytes(n) + long_to_bytes(x)
+            msg = self.nocturne.signMessage(s) + s
+            self.transport.write(b'\x10\xBB' + msg)
 
         elif data[0:2] == b'\x10\xCC': # TODO: try/except
             nonceLength = bytes_to_long(data[2:4])
             nonce = self.nocturne.makeKey(bytes_to_long(data[4 + nonceLength:]))
             self.nocturne.setDecipher(data[4:4 + nonceLength])
             nonceLength = long_to_bytes(len(nonce), 2)
-            s = b'\x10\xDD' + nonceLength + nonce + self.nocturne.cipherString("Connection is established")
-            self.transport.write(s)
+            s = nonceLength + nonce + self.nocturne.cipherString("Connection is established")
+            s = self.nocturne.signMessage(s) + s
+            self.transport.write(b'\x10\xDD' + s)
 
         elif data[0:2] == b'\x10\xEE':
             if self.nocturne.decipherToString(data[2:]) == "Connection is established":

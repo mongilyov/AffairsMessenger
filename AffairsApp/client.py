@@ -1,9 +1,13 @@
 import json
 
 from PyQt6.QtCore import QObject
+
 from Crypto.Util.number import long_to_bytes, bytes_to_long
 
 from NocturneClient import NocturneClient
+
+SIGNATURE_LENGTH = 256 # bytes
+MODULUS_LENGTH   = 512 # bytes
 
 class Client(QObject):
     def __init__(self, parent=None):
@@ -25,16 +29,39 @@ class Client(QObject):
     def data_received(self, data: bytes):
 
         if data[0:2] == b'\x10\xBB': # server hello
-            self.nocturne.setModulus(bytes_to_long(data[2:514])) # n length = 512
-            nonce = self.nocturne.makeKey(bytes_to_long(data[514:]))
+            data = data[2:]
+            signature = data[:SIGNATURE_LENGTH] # signature length = 256 bytes
+            if not self.nocturne.verifySignature(
+                data[SIGNATURE_LENGTH:], signature):
+                raise AssertionError
+            self.nocturne.setModulus(
+                bytes_to_long(
+                    data[SIGNATURE_LENGTH:
+                         SIGNATURE_LENGTH + MODULUS_LENGTH])) # n length = 512 bytes
+            nonce = self.nocturne.makeKey(
+                bytes_to_long(data[SIGNATURE_LENGTH + MODULUS_LENGTH:]))
             nonceLength = long_to_bytes(len(nonce), 2)
-            s = b'\x10\xCC' + nonceLength + nonce + long_to_bytes(self.nocturne.getDataToEst())
+            # do i need to sign client message? no for now
+            s = b'\x10\xCC' + \
+                nonceLength + nonce + \
+                    long_to_bytes(self.nocturne.getDataToEst())
             self.send_message(s)
 
         elif data[0:2] == b'\x10\xDD':
-            nonceLength = bytes_to_long(data[2:4])
-            self.nocturne.setDecipher(data[4:4 + nonceLength])
-            if self.nocturne.decipherToString(data[4 + nonceLength:]) == "Connection is established":
+            data = data[2:]
+            signature = data[:SIGNATURE_LENGTH]
+            if not self.nocturne.verifySignature(
+                data[SIGNATURE_LENGTH:], signature):
+                raise AssertionError
+            # 2 stands for 2 bytes of nonceLength
+            nonceLength = bytes_to_long(
+                data[SIGNATURE_LENGTH:
+                     SIGNATURE_LENGTH + 2]) 
+            data = data[SIGNATURE_LENGTH + 2:]
+            self.nocturne.setDecipher(
+                data[:nonceLength])
+            if self.nocturne.decipherToString(
+                data[nonceLength:]) == "Connection is established":
                 s = b'\x10\xEE' + self.nocturne.cipherString("Connection is established")
                 self.send_message(s)
 
@@ -42,7 +69,7 @@ class Client(QObject):
             if data[1:3] == b'\xBB\x11':
                 self.mainWindow.registerSignal.emit()
             elif data[1:3] == b'\xBB\x00':
-                print(f'Such user exists')
+                print(f'Such user exists') # TODO 0.0.2 make notification
 
         elif data[0:2] == b'\x30\xBB':
             if data[1:3] == b'\xBB\x11':
@@ -50,7 +77,7 @@ class Client(QObject):
                 print(f'User id is: {id}')
                 self.mainWindow.loginSignal.emit(id)
             elif data[1:3] == b'\xBB\x00':
-                print('Wrong login or password')
+                print('Wrong login or password') # TODO 0.0.2 make notification
 
         elif data[0:2] == b'\x40\xBB':
             data = json.loads(self.nocturne.decipherToString(data[2:]))
@@ -58,7 +85,7 @@ class Client(QObject):
 
         elif data[0:2] == b'\x50\xBB':
             data = json.loads(self.nocturne.decipherToString(data[2:]))
-            self.mainWindow.catalogueFill.emit(data)
+            self.mainWindow.catalogueFill.emit(data) # TODO 0.0.2 make unread notif
 
         elif data[0:2] == b'\x51\xBB':
             self.mainWindow.messagesAdd.emit(
