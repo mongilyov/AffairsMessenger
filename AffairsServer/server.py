@@ -2,6 +2,7 @@ import asyncio
 import json
 from mysql.connector import connect
 from Crypto.Util.number import long_to_bytes, bytes_to_long
+from Crypto.Random.random import getrandbits 
 
 from NocturneServer import NocturneServer
 
@@ -49,30 +50,80 @@ class ServerProtocol(asyncio.Protocol):
 
         elif data[0:2] == b'\x20\xAA': # registration
             data = json.loads(self.nocturne.decipherToString(data[2:]))
-            shaPass = self.nocturne.shaPass(data["password"])
             sqlQuery = f'SELECT userId FROM Users WHERE login="{data["login"]}";'
             self.__cursor.execute(sqlQuery)
 
-            if not self.__cursor.rowcount:
-                self.__cursor.execute(f'INSERT INTO Users (login, password) VALUES("{data["login"]}", "{shaPass}");')
-                self.__connection.commit()
-                self.transport.write(b'\x20\xBB\x11') # refactor?
-            else:
+            if self.__cursor.rowcount:                
                 self.transport.write(b'\x20\xBB\x00')
+                return
+
+            salt = getrandbits(128) # how many bytes is the question
+            print(salt)
+            self.__cursor.execute(
+                f'''
+                SELECT passwordHash
+                from Users
+                ORDER BY userId DESC LIMIT 1;
+                '''
+                )
+            if not self.__cursor.rowcount:
+                previousHashPassword = self.nocturne.shaPassBytes(b'0')
+            else:
+                previousHashPassword = self.__cursor.fetchall()[0][0].encode()
+            print(previousHashPassword)
+            shaPass = self.nocturne.shaPass(
+                previousHashPassword + \
+                data["password"].encode() + \
+                long_to_bytes(salt))
+            self.__cursor.execute(
+                f'''
+                INSERT INTO Users 
+                (login, passwordHash, salt) 
+                VALUES 
+                ("{data["login"]}", "{shaPass}", "{salt}");''')
+            self.transport.write(b'\x20\xBB\x11')
+            
                 
         elif data[0:2] == b'\x30\xAA': # login
             data = json.loads(self.nocturne.decipherToString(data[2:]))
-            shaPass = self.nocturne.shaPass(data["password"])
-            sqlQuery = f'SELECT userId FROM Users WHERE login="{data["login"]}" AND password="{shaPass}";'
+            sqlQuery = f'''
+            SELECT userId, passwordHash, salt 
+            FROM Users
+            WHERE 
+            login="{data["login"]}";'''
             self.__cursor.execute(sqlQuery)
-
-            if self.__cursor.rowcount:
-                i = self.__cursor.fetchall()
-                self.id = i[0][0]
-                self.transport.write(b'\x30\xBB' + b'\x11' + self.nocturne.cipherString(str(i[0][0])))
-                idToServerInstance[self.id] = self
-            else:
+            if not self.__cursor.rowcount:
                 self.transport.write(b'\x30\xBB' + b'\x00')
+                return
+ 
+            cursorList = self.__cursor.fetchall()[0]
+            self.id = cursorList[0]
+            
+            previousHashPassword = None
+            if self.id == 1:
+                previousHashPassword = self.nocturne.shaPassBytes(b'0')
+            else:
+                self.__cursor.execute(
+                    f'''
+                    SELECT passwordHash
+                    from Users
+                    WHERE 
+                    userId = {self.id - 1};
+                    '''
+                    )
+                previousHashPassword = self.__cursor.fetchall()[0][0].encode()
+                                        
+            shaPass = self.nocturne.shaPass(
+                previousHashPassword + \
+                data["password"].encode() + \
+                long_to_bytes(int(cursorList[2])))
+            if not cursorList[1] == shaPass:
+                self.transport.write(b'\x30\xBB' + b'\x00')
+                return
+            
+            self.transport.write(
+                b'\x30\xBB' + b'\x11' + self.nocturne.cipherString(str(self.id)))
+            idToServerInstance[self.id] = self
 
         elif data[0:2] == b'\x50\xAA': # update dockWidget
             self.__cursor.execute(f'SELECT DISTINCT idFrom, login FROM Messages INNER JOIN Users ON Messages.idFrom = Users.userId WHERE idTo ="{self.id}";')

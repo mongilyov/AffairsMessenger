@@ -46,10 +46,13 @@ class NocturneServer:
     def decipherToBytes(self, message: bytes) -> bytes:
         return self.__decipher.decrypt(message)
    
-    def shaPass(self, password: str) -> bytes:
-        h = SHA256.new()
-        h.update(password.encode())
+    def shaPass(self, password: bytes) -> str:
+        h = SHA256.new(password)
         return h.hexdigest()
+    
+    def shaPassBytes(self, password: bytes) -> bytes:
+        h = SHA256.new(password)
+        return h.digest()
   
     def signMessage(self, msg: bytes):
         hasher = SHA256.new(msg)
