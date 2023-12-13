@@ -1,5 +1,4 @@
-import typing
-from PyQt6.QtWidgets import QMenuBar, QWidget
+from PyQt6.QtWidgets import QMenuBar 
 
 class MainMenu(QMenuBar):
     def __init__(self, parent = None):

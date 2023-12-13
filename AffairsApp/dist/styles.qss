@@ -1,0 +1,78 @@
+View {
+    background-color: rgb(41, 42, 47);
+}
+
+MDS__TextEdit#messageEdit {
+    border-radius: 8px;
+    border: 2px solid #e0e4e7;
+    padding: 2px;
+    margin-right: 5px;
+    font-size: 14px;
+    font-style: italic;
+}
+
+MDS__TextEdit#messageEdit:hover,
+MDS__TextEdit#messageEdit:focus {
+    background-color: rgb(46, 47, 52);
+}
+
+MDS__TextEdit#messageEdit::placeholder {
+    color: red;
+}
+
+MDS__MessageDisplay#messageList {
+    background-color: rgb(41, 42, 47);
+    border: none;
+}
+
+MDS__Catalogue#catalogue {
+    background-color: rgb(41, 42, 47);
+    border: none;
+    margin: 0px;
+    padding: 0px;
+}
+
+MDS__Catalogue#catalogue:item:selected:active {
+    background: rgb(56, 57, 62);
+}
+
+MDS__Catalogue#catalogue:item:selected:!active {
+    background: rgb(46, 47, 52);
+}
+
+QLabel#partnerName {
+    font: 16px Arial, sans-serif;
+    font-style: italic;
+    margin: 5px 2px 0 0;
+}
+
+MDS__Catalogue:item:hover {
+    background: rgb(46, 47, 52);
+}
+
+MDS__MessageWidget {
+    height: fit-content;
+}
+
+MDS__MessageText {
+    border-radius: 8px;
+    border: 2px solid #e0e4e7;
+    padding: 1px 1px;
+    margin-right: 15px;
+    font-size: 14px;
+    font: 1.2rem "Bodony 72", sans-serif;
+    background-color: #274E7D
+}
+
+QLabel#unreadCounter {
+    border-radius: 10px;
+    width: 10px;
+    height: 10px;
+    border: 1px solid grey;
+    padding: 2px;
+    background-color: rgb(46, 47, 52);
+    color: snow;
+    text-align: center;
+    margin-right: 10px;
+    font: 16px American Typewriter, sans-serif;
+}

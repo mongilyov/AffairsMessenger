@@ -1,0 +1,3 @@
+([('Affairs',
+   '/Users/mongilyov/AffairsMessenger/AffairsApp/dist/Affairs',
+   'EXECUTABLE')],)

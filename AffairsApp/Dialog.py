@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QDialog
-from PyQt6.QtWidgets import QLabel, QPushButton, QTextEdit, QVBoxLayout
+from PyQt6.QtWidgets import QPushButton, QTextEdit, QVBoxLayout
 
 class Dialog(QDialog):
 

@@ -58,23 +58,11 @@ class ServerProtocol(asyncio.Protocol):
                 return
 
             salt = getrandbits(128) # how many bytes is the question
-            print(salt)
-            self.__cursor.execute(
-                f'''
-                SELECT passwordHash
-                from Users
-                ORDER BY userId DESC LIMIT 1;
-                '''
-                )
-            if not self.__cursor.rowcount:
-                previousHashPassword = self.nocturne.shaPassBytes(b'0')
-            else:
-                previousHashPassword = self.__cursor.fetchall()[0][0].encode()
-            print(previousHashPassword)
+            shaPass = self.nocturne.shaPassBytes(
+                data["password"].encode() + long_to_bytes(salt))
             shaPass = self.nocturne.shaPass(
-                previousHashPassword + \
-                data["password"].encode() + \
-                long_to_bytes(salt))
+                shaPass + data["password"].encode() + long_to_bytes(salt))
+
             self.__cursor.execute(
                 f'''
                 INSERT INTO Users 
@@ -99,24 +87,11 @@ class ServerProtocol(asyncio.Protocol):
             cursorList = self.__cursor.fetchall()[0]
             self.id = cursorList[0]
             
-            previousHashPassword = None
-            if self.id == 1:
-                previousHashPassword = self.nocturne.shaPassBytes(b'0')
-            else:
-                self.__cursor.execute(
-                    f'''
-                    SELECT passwordHash
-                    from Users
-                    WHERE 
-                    userId = {self.id - 1};
-                    '''
-                    )
-                previousHashPassword = self.__cursor.fetchall()[0][0].encode()
-                                        
+            shaPass = self.nocturne.shaPassBytes(
+                data["password"].encode() + long_to_bytes(int(cursorList[2])))
             shaPass = self.nocturne.shaPass(
-                previousHashPassword + \
-                data["password"].encode() + \
-                long_to_bytes(int(cursorList[2])))
+                shaPass + data["password"].encode() + long_to_bytes(int(cursorList[2])))
+
             if not cursorList[1] == shaPass:
                 self.transport.write(b'\x30\xBB' + b'\x00')
                 return
@@ -130,8 +105,7 @@ class ServerProtocol(asyncio.Protocol):
             l1 = self.__cursor.fetchall()
             self.__cursor.execute(f'SELECT DISTINCT idTo, login FROM Messages INNER JOIN Users ON Messages.idTo = Users.userId WHERE idFrom ="{self.id}";')
             l2 = self.__cursor.fetchall()
-            l1 = list(set(l1 + l2))
-            l1.sort(key=lambda x: x[1]) # refactor but how??? dict.fromkeys().keys()
+            l1 = dict.fromkeys(l1+l2).keys()
             listToSend = []
             for tup in l1:
                 listToSend.append({"id": tup[0], "name": tup[1]})
@@ -143,7 +117,7 @@ class ServerProtocol(asyncio.Protocol):
 
         elif data[0:2] == b'\x60\xAA': # get messages
             data = json.loads(self.nocturne.decipherToString(data[2:]))
-            #  sendTime >= ( {data["sendTime"]} - INTERVAL 3 DAY )
+            #  sendTime >= ( {data["sendTime"]} - INTERVAL 3 DAY ) TODO in 0.0.2
             self.__cursor.execute(f'''SELECT Messages.messageId, idFrom, sendTime, message, isRead 
                                       FROM Messages 
                                       INNER JOIN MessageText 
